@@ -9,6 +9,16 @@ class Google_TTS extends TTS_Service {
 
 	const API_ENDPOINT = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
+	private $api_key;
+	private $voice_name;
+	private $language;
+
+	public function __construct() {
+		$this->api_key    = $this->require_option( 'post_to_voice_api_key', 'Google Cloud API key' );
+		$this->voice_name = get_option( 'post_to_voice_voice_name', 'en-US-Neural2-A' );
+		$this->language   = get_option( 'post_to_voice_language', 'en-US' );
+	}
+
 	public function generate_audio( $text, $post_id ) {
 		// Prepare request body
 		$request_body = array(
@@ -65,8 +75,6 @@ class Google_TTS extends TTS_Service {
 		}
 
 		// Save audio file
-		$audio_url = $this->save_audio_file( $audio_binary, $post_id );
-
-		return $audio_url;
+		return $this->save_audio_file( $audio_binary, $post_id );
 	}
 }

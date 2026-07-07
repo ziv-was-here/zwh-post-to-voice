@@ -6,21 +6,32 @@
 defined( 'ABSPATH' ) || exit;
 
 abstract class TTS_Service {
-	protected $api_key;
-	protected $voice_name;
-	protected $language;
 
-	public function __construct() {
-		$this->api_key = get_option( 'post_to_voice_api_key', '' );
-		$this->voice_name = get_option( 'post_to_voice_voice_name', 'en-US-Neural2-A' );
-		$this->language = get_option( 'post_to_voice_language', 'en-US' );
-
-		if ( ! $this->api_key ) {
-			throw new Exception( 'API key not configured. Please set it in Post to Voice settings.' );
-		}
-	}
-
+	/**
+	 * Generate audio for the given text.
+	 *
+	 * @param string $text    Plain text to synthesize.
+	 * @param int    $post_id Post the audio belongs to.
+	 * @return array { url: string, attachment_id: int }
+	 * @throws Exception On configuration or API errors.
+	 */
 	abstract public function generate_audio( $text, $post_id );
+
+	/**
+	 * Require an option to be set; throws a friendly error naming the setting.
+	 *
+	 * @param string $option Option name.
+	 * @param string $label  Human label used in the error message.
+	 * @return string Option value.
+	 * @throws Exception When empty.
+	 */
+	protected function require_option( $option, $label ) {
+		$value = get_option( $option, '' );
+		if ( '' === trim( (string) $value ) ) {
+			throw new Exception( esc_html( $label . ' not configured. Please set it in Post to Voice settings.' ) );
+		}
+		return $value;
+	}
 
 	protected function save_audio_file( $audio_data, $post_id ) {
 		global $wp_filesystem;

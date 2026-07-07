@@ -1,9 +1,10 @@
-=== Post to Voice ===
+=== ZWH Post to Voice ===
 Contributors: yourname
 Tags: audio, text-to-speech, tts, accessibility, voice
 Requires at least: 5.0
 Requires PHP: 7.4
 Tested up to: 7.0
+Stable tag: 1.2.0
 Stable Tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -64,6 +65,15 @@ Audio files are saved to /wp-content/uploads/post-to-voice/ and registered as Wo
 Yes, click "Remove Audio" in the Audio Version meta box to delete the attachment and file.
 
 == Changelog ==
+
+= 1.2.0 =
+* New: Amazon Polly support (Access Key/Secret, region, voice, neural/standard engine)
+* New: ElevenLabs support (API key, voice ID, model selection)
+* New: Custom player UI — play/pause, seek bar, time display, playback speed (1x–2x)
+* New: Player style settings — accent/text colors, corner radius, custom CSS override
+* New: [post_to_voice] shortcode to place the player anywhere (auto-embed stays default)
+* New: Placement setting — before content, after content, or shortcode only
+
 
 = 1.0.0 =
 * Initial release
