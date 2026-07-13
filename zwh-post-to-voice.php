@@ -4,7 +4,7 @@
  * Update URI:  https://github.com/ziv-was-here/zwh-post-to-voice
  * Plugin URI: https://github.com/ziv-was-here/zwh-post-to-voice
  * Description: Convert post text to audio and embed a player
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Ziv Rozenberg
  * Author URI: https://zivwashere.com/
  * License: GPL-2.0-or-later
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 // Define plugin constants
 define( 'POST_TO_VOICE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'POST_TO_VOICE_URL', plugin_dir_url( __FILE__ ) );
-define( 'POST_TO_VOICE_VERSION', '1.2.0' );
+define( 'POST_TO_VOICE_VERSION', '1.2.1' );
 
 // Autoload classes
 require_once POST_TO_VOICE_DIR . 'class-tts-service.php';
@@ -455,7 +455,9 @@ class Post_to_Voice {
 	}
 
 	public function enqueue_frontend_scripts() {
-		wp_enqueue_style(
+		// Register only — enqueued on demand by get_player_html() so the
+		// assets load solely on pages that actually render the player.
+		wp_register_style(
 			'post-to-voice-frontend',
 			POST_TO_VOICE_URL . 'frontend.css',
 			array(),
@@ -468,7 +470,7 @@ class Post_to_Voice {
 			wp_add_inline_style( 'post-to-voice-frontend', $inline_css );
 		}
 
-		wp_enqueue_script(
+		wp_register_script(
 			'post-to-voice-player',
 			POST_TO_VOICE_URL . 'player.js',
 			array(),
@@ -738,6 +740,10 @@ class Post_to_Voice {
 		if ( ! $post ) {
 			return '';
 		}
+
+		// Load the player assets only when the player is actually rendered.
+		wp_enqueue_style( 'post-to-voice-frontend' );
+		wp_enqueue_script( 'post-to-voice-player' );
 
 		$post_title = esc_html( $post->post_title );
 		$post_url = esc_url( get_permalink( $post_id ) );
