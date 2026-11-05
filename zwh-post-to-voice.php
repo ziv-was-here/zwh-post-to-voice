@@ -4,7 +4,7 @@
  * Update URI:  https://github.com/ziv-was-here/zwh-post-to-voice
  * Plugin URI: https://github.com/ziv-was-here/zwh-post-to-voice
  * Description: Convert post text to audio and embed a player
- * Version: 1.2.1
+ * Version: 1.3.0
  * Author: Ziv Rozenberg
  * Author URI: https://zivwashere.com/
  * License: GPL-2.0-or-later
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 // Define plugin constants
 define( 'POST_TO_VOICE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'POST_TO_VOICE_URL', plugin_dir_url( __FILE__ ) );
-define( 'POST_TO_VOICE_VERSION', '1.2.1' );
+define( 'POST_TO_VOICE_VERSION', '1.3.0' );
 
 // Autoload classes
 require_once POST_TO_VOICE_DIR . 'class-tts-service.php';
@@ -135,6 +135,52 @@ class Post_to_Voice {
 		register_setting( 'post-to-voice', 'post_to_voice_custom_css', array(
 			'sanitize_callback' => array( $this, 'sanitize_custom_css' ),
 		) );
+
+		// Post types that get the meta box + auto-embedded player.
+		register_setting( 'post-to-voice', 'post_to_voice_post_types', array(
+			'type'              => 'array',
+			'sanitize_callback' => array( $this, 'sanitize_post_types' ),
+			'default'           => array( 'post' ),
+		) );
+	}
+
+	/**
+	 * Post types the plugin can be used with (public, minus attachments).
+	 *
+	 * @return WP_Post_Type[]
+	 */
+	public function get_available_post_types() {
+		$types = get_post_types( array( 'public' => true ), 'objects' );
+		unset( $types['attachment'] );
+		return $types;
+	}
+
+	/**
+	 * Post types the user enabled in settings. Defaults to "post".
+	 *
+	 * @return string[]
+	 */
+	public function get_enabled_post_types() {
+		$types = get_option( 'post_to_voice_post_types', array( 'post' ) );
+		if ( ! is_array( $types ) ) {
+			$types = array( 'post' );
+		}
+		return (array) apply_filters( 'post_to_voice_post_types', $types );
+	}
+
+	/**
+	 * Keep only registered, public post types.
+	 *
+	 * @param mixed $value Raw input.
+	 * @return string[]
+	 */
+	public function sanitize_post_types( $value ) {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+		$available = array_keys( $this->get_available_post_types() );
+		$value     = array_map( 'sanitize_key', $value );
+		return array_values( array_intersect( $value, $available ) );
 	}
 
 	/**
@@ -176,6 +222,8 @@ class Post_to_Voice {
 		$radius     = get_option( 'post_to_voice_radius', self::STYLE_DEFAULTS['radius'] );
 		$custom_css = get_option( 'post_to_voice_custom_css', '' );
 		$placement  = get_option( 'post_to_voice_placement', 'before' );
+		$enabled_types   = $this->get_enabled_post_types();
+		$available_types = $this->get_available_post_types();
 		?>
 		<div class="wrap ptv-wrap">
 			<header class="ptv-product-header">
@@ -330,6 +378,24 @@ class Post_to_Voice {
 						<div class="ptv-card">
 							<h2><?php esc_html_e( 'Player', 'zwh-post-to-voice' ); ?></h2>
 							<table class="form-table">
+								<tr>
+									<th><?php esc_html_e( 'Post types', 'zwh-post-to-voice' ); ?></th>
+									<td>
+										<fieldset>
+											<input type="hidden" name="post_to_voice_post_types[]" value="" />
+											<?php foreach ( $available_types as $type_slug => $type_obj ) : ?>
+												<label style="display:block;margin-bottom:4px;">
+													<input type="checkbox" name="post_to_voice_post_types[]" value="<?php echo esc_attr( $type_slug ); ?>" <?php checked( in_array( $type_slug, $enabled_types, true ) ); ?> />
+													<?php echo esc_html( $type_obj->labels->name ); ?>
+													<code><?php echo esc_html( $type_slug ); ?></code>
+												</label>
+											<?php endforeach; ?>
+										</fieldset>
+										<p class="description">
+											<?php esc_html_e( 'Show the Audio Version box in the editor and auto-embed the player on these post types.', 'zwh-post-to-voice' ); ?>
+										</p>
+									</td>
+								</tr>
 								<tr>
 									<th><label for="post_to_voice_placement"><?php esc_html_e( 'Placement', 'zwh-post-to-voice' ); ?></label></th>
 									<td>
@@ -522,14 +588,16 @@ class Post_to_Voice {
 	}
 
 	public function add_audio_meta_box() {
-		add_meta_box(
-			'post_to_voice_meta',
-			__( 'Audio Version', 'zwh-post-to-voice' ),
-			array( $this, 'render_meta_box' ),
-			'post',
-			'side',
-			'high'
-		);
+		foreach ( $this->get_enabled_post_types() as $post_type ) {
+			add_meta_box(
+				'post_to_voice_meta',
+				__( 'Audio Version', 'zwh-post-to-voice' ),
+				array( $this, 'render_meta_box' ),
+				$post_type,
+				'side',
+				'high'
+			);
+		}
 	}
 
 	public function render_meta_box( $post ) {
@@ -640,15 +708,15 @@ class Post_to_Voice {
 			wp_send_json_error( 'Security check failed' );
 		}
 
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( 'Permission denied' );
-		}
-
 		if ( ! isset( $_POST['post_id'] ) ) {
 			wp_send_json_error( 'Missing post ID' );
 		}
 
 		$post_id = intval( $_POST['post_id'] );
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( 'Permission denied' );
+		}
 		$post = get_post( $post_id );
 
 		if ( ! $post ) {
@@ -699,15 +767,15 @@ class Post_to_Voice {
 			wp_send_json_error( 'Security check failed' );
 		}
 
-		if ( ! current_user_can( 'edit_posts' ) ) {
-			wp_send_json_error( 'Permission denied' );
-		}
-
 		if ( ! isset( $_POST['post_id'] ) ) {
 			wp_send_json_error( 'Missing post ID' );
 		}
 
 		$post_id = intval( $_POST['post_id'] );
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( 'Permission denied' );
+		}
 
 		// Delete the attachment
 		$attachment_id = get_post_meta( $post_id, '_post_to_voice_attachment_id', true );
@@ -818,7 +886,8 @@ class Post_to_Voice {
 	 * the [post_to_voice] shortcode.
 	 */
 	public function add_audio_player( $content ) {
-		if ( ! is_singular( 'post' ) || ! in_the_loop() || ! is_main_query() ) {
+		$post_types = $this->get_enabled_post_types();
+		if ( empty( $post_types ) || ! is_singular( $post_types ) || ! in_the_loop() || ! is_main_query() ) {
 			return $content;
 		}
 
