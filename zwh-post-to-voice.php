@@ -4,7 +4,7 @@
  * Update URI:  https://github.com/ziv-was-here/zwh-post-to-voice
  * Plugin URI: https://github.com/ziv-was-here/zwh-post-to-voice
  * Description: Convert post text to audio and embed a player
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Ziv Rozenberg
  * Author URI: https://zivwashere.com/
  * License: GPL-2.0-or-later
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 // Define plugin constants
 define( 'POST_TO_VOICE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'POST_TO_VOICE_URL', plugin_dir_url( __FILE__ ) );
-define( 'POST_TO_VOICE_VERSION', '1.3.0' );
+define( 'POST_TO_VOICE_VERSION', '1.3.1' );
 
 // Autoload classes
 require_once POST_TO_VOICE_DIR . 'class-tts-service.php';
@@ -27,6 +27,9 @@ require_once POST_TO_VOICE_DIR . 'class-elevenlabs-tts.php';
 
 class Post_to_Voice {
 	private static $instance = null;
+
+	/** Post IDs whose player was already output by the shortcode this request. */
+	private $shortcode_rendered = array();
 
 	/** Default player style values. */
 	const STYLE_DEFAULTS = array(
@@ -48,7 +51,9 @@ class Post_to_Voice {
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_styles' ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_frontend_scripts' ) );
-		add_filter( 'the_content', array( $this, 'add_audio_player' ) );
+		// Priority 12: after do_blocks (9) and do_shortcode (11), so we know
+		// whether the shortcode already printed the player.
+		add_filter( 'the_content', array( $this, 'add_audio_player' ), 12 );
 		add_shortcode( 'post_to_voice', array( $this, 'render_shortcode' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_audio_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_audio_meta' ), 10, 2 );
@@ -876,7 +881,11 @@ class Post_to_Voice {
 			return '';
 		}
 
-		return $this->get_player_html( $post_id );
+		$html = $this->get_player_html( $post_id );
+		if ( $html ) {
+			$this->shortcode_rendered[ $post_id ] = true;
+		}
+		return $html;
 	}
 
 	/**
@@ -886,8 +895,17 @@ class Post_to_Voice {
 	 * the [post_to_voice] shortcode.
 	 */
 	public function add_audio_player( $content ) {
+		// Only on the single view of the queried post. Deliberately not using
+		// in_the_loop(): block themes / custom templates can render the Post
+		// Content block outside a classic loop, which skipped the player.
 		$post_types = $this->get_enabled_post_types();
-		if ( empty( $post_types ) || ! is_singular( $post_types ) || ! in_the_loop() || ! is_main_query() ) {
+		$current_id = (int) get_the_ID();
+		if ( empty( $post_types )
+			|| ! $current_id
+			|| ! is_singular()
+			|| $current_id !== (int) get_queried_object_id()
+			|| ! in_array( get_post_type( $current_id ), $post_types, true )
+		) {
 			return $content;
 		}
 
@@ -896,12 +914,19 @@ class Post_to_Voice {
 			return $content;
 		}
 
-		// The shortcode takes precedence over auto-embed.
-		if ( has_shortcode( get_post()->post_content, 'post_to_voice' ) ) {
+		$post_id = $current_id;
+
+		// The shortcode takes precedence over auto-embed: skip if it already
+		// rendered the player (covers shortcodes inside blocks, tables, synced
+		// patterns, etc.) or is still present unrendered in the content.
+		if ( ! empty( $this->shortcode_rendered[ $post_id ] )
+			|| has_shortcode( $content, 'post_to_voice' )
+			|| has_shortcode( (string) get_post_field( 'post_content', $post_id ), 'post_to_voice' )
+		) {
 			return $content;
 		}
 
-		$player_html = $this->get_player_html( get_the_ID() );
+		$player_html = $this->get_player_html( $post_id );
 		if ( ! $player_html ) {
 			return $content;
 		}

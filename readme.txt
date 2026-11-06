@@ -4,7 +4,7 @@ Tags: audio, text-to-speech, tts, accessibility, voice
 Requires at least: 5.0
 Requires PHP: 7.4
 Tested up to: 7.0
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 Stable Tag: 1.0.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -65,6 +65,10 @@ Audio files are saved to /wp-content/uploads/post-to-voice/ and registered as Wo
 Yes, click "Remove Audio" in the Audio Version meta box to delete the attachment and file.
 
 == Changelog ==
+
+= 1.3.1 =
+* Fix: Automatic player not appearing on some block themes (no longer depends on in_the_loop())
+* Fix: Automatic player no longer appears when the [post_to_voice] shortcode is used anywhere in the post (including inside blocks, tables and synced patterns)
 
 = 1.3.0 =
 * New: Custom post type support — choose which post types get the Audio Version box and auto-embedded player (Settings → Player → Post types)
